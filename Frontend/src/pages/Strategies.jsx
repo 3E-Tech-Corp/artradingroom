@@ -1,0 +1,137 @@
+import { useState, useEffect } from 'react'
+import { getStrategies, createStrategy, deleteStrategy, runBacktest, getBacktests } from '../api'
+import SvgChart from '../components/SvgChart'
+
+export default function Strategies() {
+  const [strategies, setStrategies] = useState([])
+  const [selected, setSelected] = useState(null)
+  const [backtests, setBacktests] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [showBacktest, setShowBacktest] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [form, setForm] = useState({ name: '', description: '', rules: '{\n  "entryConditions": [{"indicator": "RSI", "operator": "<", "value": 30}],\n  "exitConditions": [{"indicator": "RSI", "operator": ">", "value": 70}],\n  "positionSizing": {"percentageOfPortfolio": 0.05}\n}' })
+  const [btForm, setBtForm] = useState({ startDate: '2024-01-01', endDate: '2024-12-31', startingCapital: 100000 })
+
+  const load = () => {
+    getStrategies().then(s => { setStrategies(s); setLoading(false) }).catch(() => setLoading(false))
+  }
+
+  useEffect(load, [])
+
+  const handleCreate = async (e) => {
+    e.preventDefault()
+    try {
+      const rule = JSON.parse(form.rules)
+      await createStrategy({ name: form.name, description: form.description, rule })
+      setShowForm(false)
+      setForm({ name: '', description: '', rules: form.rules })
+      load()
+    } catch (err) { alert('Error: ' + err.message) }
+  }
+
+  const handleDelete = async (id) => {
+    if (!confirm('Delete this strategy?')) return
+    await deleteStrategy(id)
+    setSelected(null)
+    load()
+  }
+
+  const handleBacktest = async (e) => {
+    e.preventDefault()
+    try {
+      await runBacktest(selected.id, { startDate: btForm.startDate, endDate: btForm.endDate, startingCapital: Number(btForm.startingCapital) })
+      const bts = await getBacktests(selected.id)
+      setBacktests(bts)
+      setShowBacktest(false)
+      load()
+    } catch (err) { alert('Error: ' + err.message) }
+  }
+
+  const selectStrategy = async (s) => {
+    setSelected(s)
+    const bts = await getBacktests(s.id).catch(() => [])
+    setBacktests(bts)
+  }
+
+  if (loading) return <p className="loading">Loading strategies...</p>
+
+  if (selected) {
+    const latest = backtests[0]
+    return (
+      <div>
+        <button className="nav-btn" onClick={() => setSelected(null)}>&larr; Back</button>
+        <h2 style={{ margin: '0.5rem 0' }}>{selected.name}</h2>
+        <span className={`badge ${selected.status}`}>{selected.status}</span>
+        <p style={{ margin: '0.5rem 0', fontSize: '0.85rem', color: '#8b949e' }}>{selected.description}</p>
+
+        <div style={{ margin: '1rem 0' }}>
+          <button className="primary" onClick={() => setShowBacktest(true)}>Run Backtest</button>
+          <button className="danger" style={{ marginLeft: '0.5rem' }} onClick={() => handleDelete(selected.id)}>Delete</button>
+        </div>
+
+        {showBacktest && (
+          <div className="card">
+            <h3>Run Backtest</h3>
+            <form onSubmit={handleBacktest}>
+              <div className="form-row"><label>Start Date</label><input type="date" value={btForm.startDate} onChange={e => setBtForm({...btForm, startDate: e.target.value})} /></div>
+              <div className="form-row"><label>End Date</label><input type="date" value={btForm.endDate} onChange={e => setBtForm({...btForm, endDate: e.target.value})} /></div>
+              <div className="form-row"><label>Starting Capital ($)</label><input type="number" value={btForm.startingCapital} onChange={e => setBtForm({...btForm, startingCapital: e.target.value})} /></div>
+              <button className="primary" type="submit">Run</button>
+            </form>
+          </div>
+        )}
+
+        {latest && (
+          <div className="card">
+            <h3>Latest Backtest Results</h3>
+            <div className="stats-row">
+              <div className="stat"><label>Total Return</label><div className="value positive">{(latest.totalReturn * 100).toFixed(1)}%</div></div>
+              <div className="stat"><label>Sharpe Ratio</label><div className="value">{latest.sharpeRatio?.toFixed(2)}</div></div>
+              <div className="stat"><label>Max Drawdown</label><div className="value negative">{(latest.maxDrawdown * 100).toFixed(1)}%</div></div>
+              <div className="stat"><label>Win Rate</label><div className="value">{latest.totalTrades > 0 ? ((latest.winningTrades / latest.totalTrades) * 100).toFixed(0) : 0}%</div></div>
+              <div className="stat"><label>Total Trades</label><div className="value">{latest.totalTrades}</div></div>
+            </div>
+            <SvgChart data={[latest.startingCapital, latest.startingCapital * 1.05, latest.startingCapital * 1.1, latest.startingCapital * 1.08, latest.finalValue]} />
+          </div>
+        )}
+
+        {backtests.length === 0 && <p className="empty">No backtests run yet</p>}
+      </div>
+    )
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+        <h2>Strategy Lab</h2>
+        <button className="primary" onClick={() => setShowForm(!showForm)}>+ New Strategy</button>
+      </div>
+
+      {showForm && (
+        <div className="card">
+          <h3>Create Strategy</h3>
+          <form onSubmit={handleCreate}>
+            <div className="form-row"><label>Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
+            <div className="form-row"><label>Description</label><input value={form.description} onChange={e => setForm({...form, description: e.target.value})} /></div>
+            <div className="form-row"><label>Rules (JSON)</label><textarea rows={8} value={form.rules} onChange={e => setForm({...form, rules: e.target.value})} /></div>
+            <button className="primary" type="submit">Create</button>
+          </form>
+        </div>
+      )}
+
+      {strategies.length === 0 ? <p className="empty">No strategies yet. Create one to get started.</p> : (
+        <div className="grid">
+          {strategies.map(s => (
+            <div key={s.id} className="card" style={{ cursor: 'pointer' }} onClick={() => selectStrategy(s)}>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <strong>{s.name}</strong>
+                <span className={`badge ${s.status}`}>{s.status}</span>
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#8b949e', marginTop: '0.5rem' }}>{s.description || 'No description'}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}

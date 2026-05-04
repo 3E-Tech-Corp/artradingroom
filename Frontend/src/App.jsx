@@ -1,121 +1,49 @@
 import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
+import Dashboard from './pages/Dashboard'
+import Strategies from './pages/Strategies'
+import Risk from './pages/Risk'
+import Trading from './pages/Trading'
+import Research from './pages/Research'
+import Agents from './pages/Agents'
 import './App.css'
 
+const PAGES = {
+  dashboard: { label: 'Dashboard', component: Dashboard },
+  strategies: { label: 'Strategy Lab', component: Strategies },
+  risk: { label: 'Risk Console', component: Risk },
+  trading: { label: 'Trading', component: Trading },
+  research: { label: 'Research', component: Research },
+  agents: { label: 'Agents', component: Agents },
+}
+
 function App() {
-  const [count, setCount] = useState(0)
+  const [page, setPage] = useState('dashboard')
+  const [mode, setMode] = useState('paper')
+  const PageComponent = PAGES[page].component
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
+    <div className="app">
+      <aside className="sidebar">
+        <div className="sidebar-header">
+          <h1>ArTrading</h1>
+          <span className={`mode-badge ${mode}`}>{mode.toUpperCase()}</span>
         </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
-
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <nav>
+          {Object.entries(PAGES).map(([key, { label }]) => (
+            <button
+              key={key}
+              className={`nav-btn ${page === key ? 'active' : ''}`}
+              onClick={() => setPage(key)}
+            >
+              {label}
+            </button>
+          ))}
+        </nav>
+      </aside>
+      <main className="content">
+        <PageComponent mode={mode} setMode={setMode} />
+      </main>
+    </div>
   )
 }
 

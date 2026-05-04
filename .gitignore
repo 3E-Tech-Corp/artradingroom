@@ -33,11 +33,10 @@ TestResults/
 *.nuget.props
 *.nuget.targets
 
-# Entity Framework
+# Entity Framework (keep Migrations/ tracked)
 *.db
 *.db-shm
 *.db-wal
-Migrations/
 
 # Node/React
 Frontend/node_modules/
