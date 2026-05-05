@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ArTrading.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class TradingController : ControllerBase
 {
     private readonly IExecutionService _execution;

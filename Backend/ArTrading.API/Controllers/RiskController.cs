@@ -6,7 +6,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArTrading.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class RiskController : ControllerBase
 {
     private readonly ArTradingDbContext _db;

@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArTrading.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class StrategiesController : ControllerBase
 {
     private readonly IStrategyService _strategyService;

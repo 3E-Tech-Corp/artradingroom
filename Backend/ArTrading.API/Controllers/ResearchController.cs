@@ -5,7 +5,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace ArTrading.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class ResearchController : ControllerBase
 {
     private readonly IResearchAgentService _research;

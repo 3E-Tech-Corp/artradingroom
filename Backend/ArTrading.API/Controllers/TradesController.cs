@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ArTrading.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("[controller]")]
 public class TradesController : ControllerBase
 {
     private readonly ArTradingDbContext _db;

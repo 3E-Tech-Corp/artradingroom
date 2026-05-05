@@ -57,7 +57,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = Dat
     .WithName("Health")
     .WithOpenApi();
 
-app.MapGet("/api", () => Results.Ok(new { message = "ArTrading API v1.0", timestamp = DateTime.UtcNow }))
+app.MapGet("/", () => Results.Ok(new { message = "ArTrading API v1.0", timestamp = DateTime.UtcNow }))
     .WithName("Root")
     .WithOpenApi();
 
