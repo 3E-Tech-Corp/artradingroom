@@ -6,7 +6,7 @@ namespace ArTrading.Core.Services;
 
 public interface IBacktestService
 {
-    Task<BacktestRun> RunBacktestAsync(Strategy strategy, DateTime startDate, DateTime endDate, decimal startingCapital);
+    Task<BacktestRun> RunBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital);
     Task<BacktestResult> AnalyzeBacktestAsync(BacktestRun backtest);
 }
 
@@ -48,18 +48,19 @@ public class BacktestService : IBacktestService
         _logger = logger;
     }
 
-    public async Task<BacktestRun> RunBacktestAsync(Strategy strategy, DateTime startDate, DateTime endDate, decimal startingCapital)
+    public async Task<BacktestRun> RunBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
     {
         _logger.LogInformation(
-            "Starting backtest for strategy {StrategyId} from {StartDate} to {EndDate}",
-            strategy.Id, startDate, endDate);
+            "Starting backtest for strategy {StrategyId} on {Ticker} from {StartDate} to {EndDate}",
+            strategy.Id, ticker, startDate, endDate);
 
         // Simulated backtest (replace with actual OHLC data + trade simulation)
-        var result = await SimulateBacktestAsync(strategy, startDate, endDate, startingCapital);
+        var result = await SimulateBacktestAsync(strategy, ticker, startDate, endDate, startingCapital);
 
         var backtest = new BacktestRun
         {
             StrategyId = strategy.Id,
+            Ticker = ticker,
             StartDate = startDate,
             EndDate = endDate,
             StartingCapital = startingCapital,
@@ -97,7 +98,7 @@ public class BacktestService : IBacktestService
         }
     }
 
-    private async Task<BacktestResult> SimulateBacktestAsync(Strategy strategy, DateTime startDate, DateTime endDate, decimal startingCapital)
+    private async Task<BacktestResult> SimulateBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
     {
         // Mock implementation — replace with actual OHLC data simulation
         await Task.Delay(100); // Simulate work
@@ -105,7 +106,7 @@ public class BacktestService : IBacktestService
         var daysInPeriod = (endDate - startDate).Days;
         var totalTrades = Math.Max(1, daysInPeriod / 7); // ~1 trade per week
         var winningTrades = (int)(totalTrades * 0.55m); // 55% win rate
-        var trades = GenerateMockTrades(startDate, endDate, totalTrades, winningTrades);
+        var trades = GenerateMockTrades(ticker, startDate, endDate, totalTrades, winningTrades);
 
         return new BacktestResult
         {
@@ -120,9 +121,8 @@ public class BacktestService : IBacktestService
         };
     }
 
-    private List<SimulatedTrade> GenerateMockTrades(DateTime startDate, DateTime endDate, int totalTrades, int winningTrades)
+    private List<SimulatedTrade> GenerateMockTrades(string targetTicker, DateTime startDate, DateTime endDate, int totalTrades, int winningTrades)
     {
-        var tickers = new[] { "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA" };
         var signals = new[] { "RSI < 30", "RSI > 70", "MACD crossover", "MA(20) cross MA(50)", "Volume spike" };
         var rng = new Random(42); // deterministic seed for reproducibility
         var trades = new List<SimulatedTrade>();
@@ -134,7 +134,6 @@ public class BacktestService : IBacktestService
             var isWin = i < winningTrades;
             var dayOffset = (int)((double)i / totalTrades * daysInPeriod);
             var date = startDate.AddDays(dayOffset);
-            var ticker = tickers[rng.Next(tickers.Length)];
             var price = 100m + rng.Next(-20, 50) + rng.Next(0, 100) * 0.01m;
             var qty = rng.Next(5, 50) * 10;
             var pnl = isWin ? rng.Next(50, 800) : -rng.Next(30, 500);
@@ -142,7 +141,7 @@ public class BacktestService : IBacktestService
             trades.Add(new SimulatedTrade
             {
                 Date = date,
-                Ticker = ticker,
+                Ticker = targetTicker,
                 Action = isBuy ? "BUY" : "SELL",
                 Quantity = qty,
                 Price = Math.Round(price, 2),

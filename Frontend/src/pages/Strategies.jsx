@@ -10,7 +10,7 @@ export default function Strategies() {
   const [showBacktest, setShowBacktest] = useState(false)
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', description: '', rules: '{\n  "entryConditions": [{"indicator": "RSI", "operator": "<", "value": 30}],\n  "exitConditions": [{"indicator": "RSI", "operator": ">", "value": 70}],\n  "positionSizing": {"percentageOfPortfolio": 0.05}\n}' })
-  const [btForm, setBtForm] = useState({ startDate: '2024-01-01', endDate: '2024-12-31', startingCapital: 100000 })
+  const [btForm, setBtForm] = useState({ ticker: 'SPY', startDate: '2024-01-01', endDate: '2024-12-31', startingCapital: 100000 })
 
   const load = () => {
     getStrategies().then(s => { setStrategies(s); setLoading(false) }).catch(() => setLoading(false))
@@ -39,7 +39,7 @@ export default function Strategies() {
   const handleBacktest = async (e) => {
     e.preventDefault()
     try {
-      await runBacktest(selected.id, { startDate: btForm.startDate, endDate: btForm.endDate, startingCapital: Number(btForm.startingCapital) })
+      await runBacktest(selected.id, { ticker: btForm.ticker, startDate: btForm.startDate, endDate: btForm.endDate, startingCapital: Number(btForm.startingCapital) })
       const bts = await getBacktests(selected.id)
       setBacktests(bts)
       setShowBacktest(false)
@@ -77,6 +77,7 @@ export default function Strategies() {
           <div className="card">
             <h3>Run Backtest</h3>
             <form onSubmit={handleBacktest}>
+              <div className="form-row"><label>Symbol / Ticker</label><input value={btForm.ticker} onChange={e => setBtForm({...btForm, ticker: e.target.value.toUpperCase()})} placeholder="e.g. SPY, AAPL, MSFT" required /></div>
               <div className="form-row"><label>Start Date</label><input type="date" value={btForm.startDate} onChange={e => setBtForm({...btForm, startDate: e.target.value})} /></div>
               <div className="form-row"><label>End Date</label><input type="date" value={btForm.endDate} onChange={e => setBtForm({...btForm, endDate: e.target.value})} /></div>
               <div className="form-row"><label>Starting Capital ($)</label><input type="number" value={btForm.startingCapital} onChange={e => setBtForm({...btForm, startingCapital: e.target.value})} /></div>
@@ -90,6 +91,7 @@ export default function Strategies() {
             <div className="card">
               <h3>Backtest Parameters</h3>
               <div className="stats-row">
+                <div className="stat"><label>Symbol</label><div className="value" style={{ color: '#58a6ff' }}>{latest.ticker || 'N/A'}</div></div>
                 <div className="stat"><label>Date Range</label><div className="value" style={{ fontSize: '0.95rem' }}>{new Date(latest.startDate).toLocaleDateString()} — {new Date(latest.endDate).toLocaleDateString()}</div></div>
                 <div className="stat"><label>Starting Capital</label><div className="value">${Number(latest.startingCapital).toLocaleString()}</div></div>
                 <div className="stat"><label>Final Value</label><div className="value">${Number(latest.finalValue).toLocaleString()}</div></div>

@@ -4,6 +4,7 @@ public class BacktestRun
 {
     public int Id { get; set; }
     public int StrategyId { get; set; }
+    public string Ticker { get; set; } = "SPY";
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public decimal StartingCapital { get; set; }

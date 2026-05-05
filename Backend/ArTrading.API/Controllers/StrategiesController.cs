@@ -70,7 +70,7 @@ public class StrategiesController : ControllerBase
             return NotFound();
 
         var backtest = await _backtestService.RunBacktestAsync(
-            strategy, request.StartDate, request.EndDate, request.StartingCapital);
+            strategy, request.Ticker ?? "SPY", request.StartDate, request.EndDate, request.StartingCapital);
 
         _db.BacktestRuns.Add(backtest);
         strategy.Status = "backtested";
@@ -148,6 +148,7 @@ public class UpdateStrategyRequest
 
 public class BacktestRequest
 {
+    public string? Ticker { get; set; }
     public DateTime StartDate { get; set; }
     public DateTime EndDate { get; set; }
     public decimal StartingCapital { get; set; } = 100000m;
