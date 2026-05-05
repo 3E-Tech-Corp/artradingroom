@@ -11,6 +11,7 @@ export default function Strategies() {
   const [loading, setLoading] = useState(true)
   const [form, setForm] = useState({ name: '', description: '', rules: '{\n  "entryConditions": [{"indicator": "RSI", "operator": "<", "value": 30}],\n  "exitConditions": [{"indicator": "RSI", "operator": ">", "value": 70}],\n  "positionSizing": {"percentageOfPortfolio": 0.05}\n}' })
   const [btForm, setBtForm] = useState({ ticker: 'SPY', startDate: '2024-01-01', endDate: '2024-12-31', startingCapital: 100000 })
+  const [showOhlcv, setShowOhlcv] = useState(false)
 
   const load = () => {
     getStrategies().then(s => { setStrategies(s); setLoading(false) }).catch(() => setLoading(false))
@@ -63,7 +64,6 @@ export default function Strategies() {
     const priceData = latestResults?.PriceData || []
     const closePrices = priceData.map(b => b.Close)
     const tradeMarkers = trades.filter(t => t.BarIndex != null && t.BarIndex >= 0).map(t => ({ index: t.BarIndex, type: t.Action }))
-    const [showOhlcv, setShowOhlcv] = useState(false)
 
     return (
       <div>
