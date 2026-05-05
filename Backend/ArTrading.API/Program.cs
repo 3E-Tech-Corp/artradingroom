@@ -42,12 +42,8 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// Auto-apply EF migrations on startup (runs as app pool identity which has DB access)
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<ArTradingDbContext>();
-    db.Database.Migrate();
-}
+// NOTE: Database is manually managed on FTPB1 — do NOT use Database.Migrate()
+// Apply schema changes via SQL scripts instead
 
 // Configure pipeline
 if (app.Environment.IsDevelopment())
