@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Dashboard from './pages/Dashboard'
 import Strategies from './pages/Strategies'
 import Risk from './pages/Risk'
@@ -16,16 +16,34 @@ const PAGES = {
   agents: { label: 'Agents', component: Agents },
 }
 
+function getInitialPage() {
+  const hash = window.location.hash.replace('#', '')
+  return PAGES[hash] ? hash : 'dashboard'
+}
+
 function App() {
-  const [page, setPage] = useState('dashboard')
+  const [page, setPage] = useState(getInitialPage)
   const [mode, setMode] = useState('paper')
+
+  useEffect(() => {
+    window.location.hash = page
+  }, [page])
+
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.replace('#', '')
+      if (PAGES[hash]) setPage(hash)
+    }
+    window.addEventListener('hashchange', onHashChange)
+    return () => window.removeEventListener('hashchange', onHashChange)
+  }, [])
   const PageComponent = PAGES[page].component
 
   return (
     <div className="app">
       <aside className="sidebar">
         <div className="sidebar-header">
-          <h1>ArTrading</h1>
+          <h1>AITrade</h1>
           <span className={`mode-badge ${mode}`}>{mode.toUpperCase()}</span>
         </div>
         <nav>
