@@ -19,6 +19,7 @@ builder.Services.AddDbContext<ArTradingDbContext>(options =>
 );
 
 // Register application services (Singleton for stateful execution service)
+builder.Services.AddHttpClient<IMarketDataService, YahooFinanceService>();
 builder.Services.AddScoped<IStrategyService, StrategyService>();
 builder.Services.AddScoped<IBacktestService, BacktestService>();
 builder.Services.AddScoped<IRiskManagementService, RiskManagementService>();

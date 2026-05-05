@@ -58,8 +58,12 @@ export default function Strategies() {
   if (selected) {
     const latest = backtests[0]
     const latestResults = latest?.results ? (() => { try { return JSON.parse(latest.results) } catch { return null } })() : null
-    const equityCurveData = latestResults?.EquityCurve?.map(p => p.PortfolioValue) || (latest ? [latest.startingCapital, latest.startingCapital * 1.05, latest.startingCapital * 1.1, latest.startingCapital * 1.08, latest.finalValue] : [])
+    const equityCurveData = latestResults?.EquityCurve?.map(p => p.PortfolioValue) || []
     const trades = latestResults?.Trades || []
+    const priceData = latestResults?.PriceData || []
+    const closePrices = priceData.map(b => b.Close)
+    const tradeMarkers = trades.filter(t => t.BarIndex != null && t.BarIndex >= 0).map(t => ({ index: t.BarIndex, type: t.Action }))
+    const [showOhlcv, setShowOhlcv] = useState(false)
 
     return (
       <div>
@@ -110,6 +114,48 @@ export default function Strategies() {
               </div>
               <SvgChart data={equityCurveData} width={600} height={160} label="equity" />
             </div>
+
+            {closePrices.length > 0 && (
+              <div className="card">
+                <h3>Price Chart — {latest.ticker || 'N/A'} (with trade signals)</h3>
+                <SvgChart data={closePrices} markers={tradeMarkers} width={700} height={200} color="#58a6ff" label="price" />
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '0.5rem', fontSize: '0.75rem', color: '#8b949e' }}>
+                  <span><span style={{ color: '#3fb950' }}>&#9650;</span> BUY</span>
+                  <span><span style={{ color: '#f85149' }}>&#9660;</span> SELL</span>
+                  <span>{closePrices.length} trading days</span>
+                </div>
+              </div>
+            )}
+
+            {priceData.length > 0 && (
+              <div className="card">
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>OHLCV Data</span>
+                  <button className="nav-btn" style={{ fontSize: '0.75rem' }} onClick={() => setShowOhlcv(!showOhlcv)}>
+                    {showOhlcv ? 'Hide Table' : `Show Table (${priceData.length} bars)`}
+                  </button>
+                </h3>
+                {showOhlcv && (
+                  <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                    <table>
+                      <thead><tr><th>Date</th><th>Open</th><th>High</th><th>Low</th><th>Close</th><th>Volume</th></tr></thead>
+                      <tbody>
+                        {priceData.map((b, i) => (
+                          <tr key={i} style={trades.some(t => t.BarIndex === i) ? { background: '#1f6feb22' } : {}}>
+                            <td>{new Date(b.Date).toLocaleDateString()}</td>
+                            <td>${b.Open?.toFixed(2)}</td>
+                            <td>${b.High?.toFixed(2)}</td>
+                            <td>${b.Low?.toFixed(2)}</td>
+                            <td style={{ fontWeight: 'bold' }}>${b.Close?.toFixed(2)}</td>
+                            <td>{(b.Volume / 1000000).toFixed(1)}M</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            )}
 
             {trades.length > 0 && (
               <div className="card">

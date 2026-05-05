@@ -1,4 +1,4 @@
-export default function SvgChart({ data = [], width = 400, height = 120, color = '#00ff88', label = '' }) {
+export default function SvgChart({ data = [], markers = [], width = 400, height = 120, color = '#00ff88', label = '' }) {
   if (!data || data.length < 2) {
     return (
       <svg width={width} height={height} style={{ display: 'block' }}>
@@ -61,6 +61,32 @@ export default function SvgChart({ data = [], width = 400, height = 120, color =
 
       {/* Line */}
       <path d={d} fill="none" stroke={color} strokeWidth="1.5" />
+
+      {/* Buy/Sell markers */}
+      {markers.map((m, i) => {
+        if (m.index < 0 || m.index >= points.length) return null;
+        const [mx, my] = points[m.index];
+        const isBuy = m.type === 'BUY';
+        return (
+          <g key={`marker-${i}`}>
+            {isBuy ? (
+              <polygon
+                points={`${mx},${my - 8} ${mx - 5},${my + 2} ${mx + 5},${my + 2}`}
+                fill="#3fb950"
+                stroke="#0a0f0a"
+                strokeWidth="0.5"
+              />
+            ) : (
+              <polygon
+                points={`${mx},${my + 8} ${mx - 5},${my - 2} ${mx + 5},${my - 2}`}
+                fill="#f85149"
+                stroke="#0a0f0a"
+                strokeWidth="0.5"
+              />
+            )}
+          </g>
+        );
+      })}
 
       {/* Last value dot */}
       <circle

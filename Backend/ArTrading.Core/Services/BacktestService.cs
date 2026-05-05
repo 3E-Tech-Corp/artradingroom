@@ -1,5 +1,6 @@
 using System.Text.Json;
 using ArTrading.Core.Entities;
+using ArTrading.Core.Models;
 using Microsoft.Extensions.Logging;
 
 namespace ArTrading.Core.Services;
@@ -20,17 +21,19 @@ public class BacktestResult
     public decimal WinRate { get; set; }
     public List<TradePoint> EquityCurve { get; set; } = new();
     public List<SimulatedTrade> Trades { get; set; } = new();
+    public List<OhlcvBar> PriceData { get; set; } = new();
 }
 
 public class SimulatedTrade
 {
     public DateTime Date { get; set; }
     public string Ticker { get; set; } = "";
-    public string Action { get; set; } = ""; // BUY or SELL
+    public string Action { get; set; } = "";
     public int Quantity { get; set; }
     public decimal Price { get; set; }
     public decimal PnL { get; set; }
-    public string Signal { get; set; } = ""; // e.g. "RSI < 30"
+    public string Signal { get; set; } = "";
+    public int BarIndex { get; set; } // index into PriceData for chart overlay
 }
 
 public class TradePoint
@@ -42,10 +45,12 @@ public class TradePoint
 public class BacktestService : IBacktestService
 {
     private readonly ILogger<BacktestService> _logger;
+    private readonly IMarketDataService _marketData;
 
-    public BacktestService(ILogger<BacktestService> logger)
+    public BacktestService(ILogger<BacktestService> logger, IMarketDataService marketData)
     {
         _logger = logger;
+        _marketData = marketData;
     }
 
     public async Task<BacktestRun> RunBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
@@ -54,8 +59,7 @@ public class BacktestService : IBacktestService
             "Starting backtest for strategy {StrategyId} on {Ticker} from {StartDate} to {EndDate}",
             strategy.Id, ticker, startDate, endDate);
 
-        // Simulated backtest (replace with actual OHLC data + trade simulation)
-        var result = await SimulateBacktestAsync(strategy, ticker, startDate, endDate, startingCapital);
+        var result = await ExecuteBacktestAsync(strategy, ticker, startDate, endDate, startingCapital);
 
         var backtest = new BacktestRun
         {
@@ -64,7 +68,7 @@ public class BacktestService : IBacktestService
             StartDate = startDate,
             EndDate = endDate,
             StartingCapital = startingCapital,
-            FinalValue = result.TotalReturn * startingCapital,
+            FinalValue = startingCapital * (1 + result.TotalReturn),
             TotalReturn = result.TotalReturn,
             SharpeRatio = result.SharpeRatio,
             MaxDrawdown = result.MaxDrawdown,
@@ -74,8 +78,8 @@ public class BacktestService : IBacktestService
         };
 
         _logger.LogInformation(
-            "Backtest complete: TotalReturn={Return}, SharpeRatio={Sharpe}, MaxDD={MaxDD}",
-            backtest.TotalReturn, backtest.SharpeRatio, backtest.MaxDrawdown);
+            "Backtest complete: TotalReturn={Return:P2}, SharpeRatio={Sharpe:F2}, MaxDD={MaxDD:P2}, Trades={Trades}",
+            backtest.TotalReturn, backtest.SharpeRatio, backtest.MaxDrawdown, backtest.TotalTrades);
 
         return backtest;
     }
@@ -98,74 +102,236 @@ public class BacktestService : IBacktestService
         }
     }
 
-    private async Task<BacktestResult> SimulateBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
+    private async Task<BacktestResult> ExecuteBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
     {
-        // Mock implementation — replace with actual OHLC data simulation
-        await Task.Delay(100); // Simulate work
+        // Fetch real market data — request extra bars before startDate for RSI warmup
+        var warmupStart = startDate.AddDays(-30); // ~20 trading days for 14-period RSI
+        var bars = await _marketData.GetHistoricalDataAsync(ticker, warmupStart, endDate);
 
-        var daysInPeriod = (endDate - startDate).Days;
-        var totalTrades = Math.Max(1, daysInPeriod / 7); // ~1 trade per week
-        var winningTrades = (int)(totalTrades * 0.55m); // 55% win rate
-        var trades = GenerateMockTrades(ticker, startDate, endDate, totalTrades, winningTrades);
+        if (bars.Count < 15)
+            throw new InvalidOperationException($"Not enough historical data for {ticker}. Got {bars.Count} bars, need at least 15.");
 
-        return new BacktestResult
-        {
-            TotalReturn = 0.25m, // 25% return
-            SharpeRatio = 1.8m,
-            MaxDrawdown = 0.12m, // 12% max drawdown
-            WinningTrades = winningTrades,
-            TotalTrades = totalTrades,
-            WinRate = (decimal)winningTrades / totalTrades,
-            EquityCurve = GenerateMockEquityCurve(startDate, endDate, startingCapital),
-            Trades = trades
-        };
-    }
+        // Parse strategy rules
+        var rules = ParseStrategyRules(strategy.Rules);
 
-    private List<SimulatedTrade> GenerateMockTrades(string targetTicker, DateTime startDate, DateTime endDate, int totalTrades, int winningTrades)
-    {
-        var signals = new[] { "RSI < 30", "RSI > 70", "MACD crossover", "MA(20) cross MA(50)", "Volume spike" };
-        var rng = new Random(42); // deterministic seed for reproducibility
+        // Calculate indicators
+        var rsi = IndicatorCalculator.CalculateRsi(bars);
+
+        // Find the index where our actual backtest period starts
+        var startIdx = bars.FindIndex(b => b.Date >= startDate);
+        if (startIdx < 0) startIdx = 0;
+        // Ensure we're past the RSI warmup
+        startIdx = Math.Max(startIdx, 15);
+
+        // Run simulation
         var trades = new List<SimulatedTrade>();
-        var daysInPeriod = (endDate - startDate).Days;
+        var equityCurve = new List<TradePoint>();
+        decimal cash = startingCapital;
+        int sharesHeld = 0;
+        decimal entryPrice = 0;
+        int entryBarIdx = 0;
+        string entrySignal = "";
 
-        for (int i = 0; i < totalTrades; i++)
+        // Only include bars from the actual start date in PriceData
+        var priceData = bars.Skip(startIdx).ToList();
+        var barOffset = startIdx; // offset to map simulation index to priceData index
+
+        for (int i = startIdx; i < bars.Count; i++)
         {
-            var isBuy = i % 2 == 0;
-            var isWin = i < winningTrades;
-            var dayOffset = (int)((double)i / totalTrades * daysInPeriod);
-            var date = startDate.AddDays(dayOffset);
-            var price = 100m + rng.Next(-20, 50) + rng.Next(0, 100) * 0.01m;
-            var qty = rng.Next(5, 50) * 10;
-            var pnl = isWin ? rng.Next(50, 800) : -rng.Next(30, 500);
+            var bar = bars[i];
+            var portfolioValue = cash + sharesHeld * bar.Close;
+            equityCurve.Add(new TradePoint { Date = bar.Date, PortfolioValue = portfolioValue });
+
+            // Check entry conditions (not in position)
+            if (sharesHeld == 0)
+            {
+                var (shouldEnter, signal) = EvaluateConditions(rules.EntryConditions, rsi[i], bar);
+                if (shouldEnter && i + 1 < bars.Count)
+                {
+                    // Buy at next bar's open
+                    var buyPrice = bars[i + 1].Open;
+                    var positionSize = cash * rules.PositionSizing.PercentageOfPortfolio;
+                    var maxSize = cash * rules.PositionSizing.MaxPositionSize;
+                    positionSize = Math.Min(positionSize, maxSize);
+                    sharesHeld = (int)(positionSize / buyPrice);
+
+                    if (sharesHeld > 0)
+                    {
+                        cash -= sharesHeld * buyPrice;
+                        entryPrice = buyPrice;
+                        entryBarIdx = i + 1;
+                        entrySignal = signal;
+
+                        trades.Add(new SimulatedTrade
+                        {
+                            Date = bars[i + 1].Date,
+                            Ticker = ticker,
+                            Action = "BUY",
+                            Quantity = sharesHeld,
+                            Price = Math.Round(buyPrice, 2),
+                            PnL = 0,
+                            Signal = signal,
+                            BarIndex = i + 1 - barOffset
+                        });
+                    }
+                }
+            }
+            // Check exit conditions (in position)
+            else
+            {
+                var (shouldExit, signal) = EvaluateConditions(rules.ExitConditions, rsi[i], bar);
+                if (shouldExit && i + 1 < bars.Count)
+                {
+                    // Sell at next bar's open
+                    var sellPrice = bars[i + 1].Open;
+                    var proceeds = sharesHeld * sellPrice;
+                    var pnl = (sellPrice - entryPrice) * sharesHeld;
+                    cash += proceeds;
+
+                    trades.Add(new SimulatedTrade
+                    {
+                        Date = bars[i + 1].Date,
+                        Ticker = ticker,
+                        Action = "SELL",
+                        Quantity = sharesHeld,
+                        Price = Math.Round(sellPrice, 2),
+                        PnL = Math.Round(pnl, 2),
+                        Signal = signal,
+                        BarIndex = i + 1 - barOffset
+                    });
+
+                    sharesHeld = 0;
+                }
+            }
+        }
+
+        // Close any open position at end
+        if (sharesHeld > 0)
+        {
+            var lastBar = bars[^1];
+            var pnl = (lastBar.Close - entryPrice) * sharesHeld;
+            cash += sharesHeld * lastBar.Close;
 
             trades.Add(new SimulatedTrade
             {
-                Date = date,
-                Ticker = targetTicker,
-                Action = isBuy ? "BUY" : "SELL",
-                Quantity = qty,
-                Price = Math.Round(price, 2),
-                PnL = pnl,
-                Signal = signals[rng.Next(signals.Length)]
+                Date = lastBar.Date,
+                Ticker = ticker,
+                Action = "SELL",
+                Quantity = sharesHeld,
+                Price = Math.Round(lastBar.Close, 2),
+                PnL = Math.Round(pnl, 2),
+                Signal = "End of period",
+                BarIndex = bars.Count - 1 - barOffset
             });
+
+            sharesHeld = 0;
         }
 
-        return trades.OrderBy(t => t.Date).ToList();
+        // Compute metrics
+        var finalValue = cash;
+        var totalReturn = (finalValue - startingCapital) / startingCapital;
+        var winningTrades = trades.Count(t => t.Action == "SELL" && t.PnL > 0);
+        var sellTrades = trades.Count(t => t.Action == "SELL");
+        var maxDrawdown = ComputeMaxDrawdown(equityCurve);
+        var sharpeRatio = ComputeSharpeRatio(equityCurve);
+
+        return new BacktestResult
+        {
+            TotalReturn = Math.Round(totalReturn, 6),
+            SharpeRatio = Math.Round(sharpeRatio, 4),
+            MaxDrawdown = Math.Round(maxDrawdown, 6),
+            WinningTrades = winningTrades,
+            TotalTrades = sellTrades,
+            WinRate = sellTrades > 0 ? Math.Round((decimal)winningTrades / sellTrades, 4) : 0,
+            EquityCurve = equityCurve,
+            Trades = trades,
+            PriceData = priceData
+        };
     }
 
-    private List<TradePoint> GenerateMockEquityCurve(DateTime startDate, DateTime endDate, decimal startingCapital)
+    private StrategyRule ParseStrategyRules(string? rulesJson)
     {
-        var curve = new List<TradePoint>();
-        var currentValue = startingCapital;
-        var currentDate = startDate;
+        if (string.IsNullOrEmpty(rulesJson))
+            return new StrategyRule();
 
-        while (currentDate <= endDate)
+        try
         {
-            curve.Add(new TradePoint { Date = currentDate, PortfolioValue = currentValue });
-            currentValue *= 1.001m; // 0.1% daily growth (mock)
-            currentDate = currentDate.AddDays(1);
+            var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            return JsonSerializer.Deserialize<StrategyRule>(rulesJson, options) ?? new StrategyRule();
+        }
+        catch
+        {
+            return new StrategyRule();
+        }
+    }
+
+    private (bool triggered, string signal) EvaluateConditions(List<Condition> conditions, decimal rsiValue, OhlcvBar bar)
+    {
+        foreach (var cond in conditions)
+        {
+            decimal indicatorValue = cond.Indicator.ToUpperInvariant() switch
+            {
+                "RSI" => rsiValue,
+                _ => 50m // unsupported indicator defaults to neutral
+            };
+
+            bool met = cond.Operator switch
+            {
+                "<" => indicatorValue < cond.Value,
+                "<=" => indicatorValue <= cond.Value,
+                ">" => indicatorValue > cond.Value,
+                ">=" => indicatorValue >= cond.Value,
+                "==" => indicatorValue == cond.Value,
+                _ => false
+            };
+
+            if (met)
+                return (true, $"{cond.Indicator} {cond.Operator} {cond.Value} (actual: {indicatorValue:F1})");
         }
 
-        return curve;
+        return (false, "");
+    }
+
+    private decimal ComputeMaxDrawdown(List<TradePoint> curve)
+    {
+        if (curve.Count == 0) return 0;
+
+        decimal peak = curve[0].PortfolioValue;
+        decimal maxDd = 0;
+
+        foreach (var point in curve)
+        {
+            if (point.PortfolioValue > peak)
+                peak = point.PortfolioValue;
+
+            var dd = (peak - point.PortfolioValue) / peak;
+            if (dd > maxDd)
+                maxDd = dd;
+        }
+
+        return maxDd;
+    }
+
+    private decimal ComputeSharpeRatio(List<TradePoint> curve)
+    {
+        if (curve.Count < 2) return 0;
+
+        var returns = new List<decimal>();
+        for (int i = 1; i < curve.Count; i++)
+        {
+            if (curve[i - 1].PortfolioValue == 0) continue;
+            returns.Add((curve[i].PortfolioValue - curve[i - 1].PortfolioValue) / curve[i - 1].PortfolioValue);
+        }
+
+        if (returns.Count == 0) return 0;
+
+        var mean = returns.Average();
+        var variance = returns.Sum(r => (r - mean) * (r - mean)) / returns.Count;
+        var stdev = (decimal)Math.Sqrt((double)variance);
+
+        if (stdev == 0) return 0;
+
+        // Annualize: multiply by sqrt(252 trading days)
+        return Math.Round(mean / stdev * (decimal)Math.Sqrt(252), 4);
     }
 }
