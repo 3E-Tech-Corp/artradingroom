@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react'
 import { getStrategies, createStrategy, deleteStrategy, runBacktest, getBacktests } from '../api'
 import SvgChart from '../components/SvgChart'
+import ParameterEditor, { defaultRule } from '../components/ParameterEditor'
+import MonteCarloPanel from '../components/MonteCarloPanel'
+import SensitivityPanel from '../components/SensitivityPanel'
 
 export default function Strategies() {
   const [strategies, setStrategies] = useState([])
@@ -9,7 +12,7 @@ export default function Strategies() {
   const [showForm, setShowForm] = useState(false)
   const [showBacktest, setShowBacktest] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [form, setForm] = useState({ name: '', description: '', rules: '{\n  "entryConditions": [{"indicator": "RSI", "operator": "<", "value": 30}],\n  "exitConditions": [{"indicator": "RSI", "operator": ">", "value": 70}],\n  "positionSizing": {"percentageOfPortfolio": 0.05}\n}' })
+  const [form, setForm] = useState({ name: '', description: '', rule: defaultRule })
   const [btForm, setBtForm] = useState({ ticker: 'SPY', startDate: '2024-01-01', endDate: '2024-12-31', startingCapital: 100000 })
   const [showOhlcv, setShowOhlcv] = useState(false)
 
@@ -22,10 +25,9 @@ export default function Strategies() {
   const handleCreate = async (e) => {
     e.preventDefault()
     try {
-      const rule = JSON.parse(form.rules)
-      await createStrategy({ name: form.name, description: form.description, rule })
+      await createStrategy({ name: form.name, description: form.description, rule: form.rule })
       setShowForm(false)
-      setForm({ name: '', description: '', rules: form.rules })
+      setForm({ name: '', description: '', rule: defaultRule })
       load()
     } catch (err) { alert('Error: ' + err.message) }
   }
@@ -187,6 +189,9 @@ export default function Strategies() {
                 <p className="empty">No trade log available for this backtest. Re-run the backtest to generate trade history.</p>
               </div>
             )}
+
+            <MonteCarloPanel strategyId={selected.id} btForm={btForm} />
+            <SensitivityPanel strategyId={selected.id} btForm={btForm} />
           </>
         )}
 
@@ -208,7 +213,10 @@ export default function Strategies() {
           <form onSubmit={handleCreate}>
             <div className="form-row"><label>Name</label><input value={form.name} onChange={e => setForm({...form, name: e.target.value})} required /></div>
             <div className="form-row"><label>Description</label><input value={form.description} onChange={e => setForm({...form, description: e.target.value})} /></div>
-            <div className="form-row"><label>Rules (JSON)</label><textarea rows={8} value={form.rules} onChange={e => setForm({...form, rules: e.target.value})} /></div>
+            <div style={{ marginBottom: '0.75rem' }}>
+              <label style={{ display: 'block', fontSize: '0.75rem', color: '#8b949e', marginBottom: '0.5rem', textTransform: 'uppercase' }}>Trading Rules & Parameters</label>
+              <ParameterEditor value={form.rule} onChange={rule => setForm({...form, rule})} />
+            </div>
             <button className="primary" type="submit">Create</button>
           </form>
         </div>

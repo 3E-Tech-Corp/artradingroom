@@ -26,6 +26,8 @@ export const createStrategy = (s) => request('POST', '/api/strategies', s);
 export const deleteStrategy = (id) => request('DELETE', `/api/strategies/${id}`);
 export const runBacktest = (id, params) => request('POST', `/api/strategies/${id}/backtest`, params);
 export const getBacktests = (id) => request('GET', `/api/strategies/${id}/backtests`);
+export const runMonteCarlo = (id, params) => request('POST', `/api/strategies/${id}/montecarlo`, params);
+export const runSensitivity = (id, params) => request('POST', `/api/strategies/${id}/sensitivity`, params);
 
 // Agents
 export const getAgents = () => request('GET', '/api/agents');
