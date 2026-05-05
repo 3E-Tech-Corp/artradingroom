@@ -1,0 +1,23 @@
+{
+  "name": "artradingroom",
+  "version": "1.0.0",
+  "description": "A full-stack platform for building and managing autonomous AI trading agents. Built on .NET 8 + React + SQL Server.",
+  "main": "playwright.config.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/3E-Tech-Corp/artradingroom.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/3E-Tech-Corp/artradingroom/issues"
+  },
+  "homepage": "https://github.com/3E-Tech-Corp/artradingroom#readme",
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
