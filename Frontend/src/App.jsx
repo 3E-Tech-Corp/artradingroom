@@ -5,15 +5,17 @@ import Risk from './pages/Risk'
 import Trading from './pages/Trading'
 import Research from './pages/Research'
 import Agents from './pages/Agents'
+import MarketData from './pages/MarketData'
 import './App.css'
 
 const PAGES = {
-  dashboard: { label: 'Dashboard', component: Dashboard },
+  dashboard:  { label: 'Dashboard',   component: Dashboard },
   strategies: { label: 'Strategy Lab', component: Strategies },
-  risk: { label: 'Risk Console', component: Risk },
-  trading: { label: 'Trading', component: Trading },
-  research: { label: 'Research', component: Research },
-  agents: { label: 'Agents', component: Agents },
+  marketdata: { label: 'Market Data',  component: MarketData },
+  risk:       { label: 'Risk Console', component: Risk },
+  trading:    { label: 'Trading',      component: Trading },
+  research:   { label: 'Research',     component: Research },
+  agents:     { label: 'Agents',       component: Agents },
 }
 
 function getInitialPage() {

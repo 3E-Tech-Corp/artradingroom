@@ -49,5 +49,16 @@ export const scanMarket = (params) => request('POST', '/api/research/scan', para
 export const getPortfolio = () => request('GET', '/api/trading/portfolio');
 export const getPositions = () => request('GET', '/api/trading/positions');
 
+// Market Data
+export const getMarketSymbols   = () => request('GET', '/api/marketdata');
+export const downloadMarketData = (params) => request('POST', '/api/marketdata/download', params);
+export const getMarketBars      = (ticker, from, to) => {
+  const qs = new URLSearchParams();
+  if (from) qs.set('from', from);
+  if (to)   qs.set('to', to);
+  return request('GET', `/api/marketdata/${encodeURIComponent(ticker)}${qs.size ? '?' + qs : ''}`);
+};
+export const deleteMarketSymbol = (ticker) => request('DELETE', `/api/marketdata/${encodeURIComponent(ticker)}`);
+
 // Health
 export const getHealth = () => request('GET', '/health');

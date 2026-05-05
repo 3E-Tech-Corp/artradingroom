@@ -105,7 +105,7 @@ public class BacktestService : IBacktestService
     private async Task<BacktestResult> ExecuteBacktestAsync(Strategy strategy, string ticker, DateTime startDate, DateTime endDate, decimal startingCapital)
     {
         // Fetch real market data — request extra bars before startDate for RSI warmup
-        var warmupStart = startDate.AddDays(-30); // ~20 trading days for 14-period RSI
+        var warmupStart = startDate.AddDays(-220); // enough warmup for SMA200
         var bars = await _marketData.GetHistoricalDataAsync(ticker, warmupStart, endDate);
 
         if (bars.Count < 15)
@@ -114,14 +114,22 @@ public class BacktestService : IBacktestService
         // Parse strategy rules
         var rules = ParseStrategyRules(strategy.Rules);
 
-        // Calculate indicators
-        var rsi = IndicatorCalculator.CalculateRsi(bars);
+        // Pre-compute all indicators
+        var indicators = new Dictionary<string, decimal[]>
+        {
+            ["RSI"]             = IndicatorCalculator.CalculateRsi(bars),
+            ["PRICE_VS_SMA20"]  = IndicatorCalculator.PriceVsSma(bars, 20),
+            ["PRICE_VS_SMA50"]  = IndicatorCalculator.PriceVsSma(bars, 50),
+            ["PRICE_VS_SMA200"] = IndicatorCalculator.PriceVsSma(bars, 200),
+            ["SMA_CROSS_20_50"] = IndicatorCalculator.SmaCrossover(bars, 20, 50),
+            ["SMA_CROSS_50_200"]= IndicatorCalculator.SmaCrossover(bars, 50, 200),
+            ["BOLLINGER"]       = IndicatorCalculator.BollingerPosition(bars),
+        };
 
-        // Find the index where our actual backtest period starts
+        // Find the index where our actual backtest period starts (after warmup)
         var startIdx = bars.FindIndex(b => b.Date >= startDate);
         if (startIdx < 0) startIdx = 0;
-        // Ensure we're past the RSI warmup
-        startIdx = Math.Max(startIdx, 15);
+        startIdx = Math.Max(startIdx, 200); // enough for SMA200 warmup
 
         // Run simulation
         var trades = new List<SimulatedTrade>();
@@ -145,7 +153,7 @@ public class BacktestService : IBacktestService
             // Check entry conditions (not in position)
             if (sharesHeld == 0)
             {
-                var (shouldEnter, signal) = EvaluateConditions(rules.EntryConditions, rsi[i], bar);
+                var (shouldEnter, signal) = EvaluateConditions(rules.EntryConditions, indicators, i, bar);
                 if (shouldEnter && i + 1 < bars.Count)
                 {
                     // Buy at next bar's open
@@ -179,7 +187,7 @@ public class BacktestService : IBacktestService
             // Check exit conditions (in position)
             else
             {
-                var (shouldExit, signal) = EvaluateConditions(rules.ExitConditions, rsi[i], bar);
+                var (shouldExit, signal) = EvaluateConditions(rules.ExitConditions, indicators, i, bar);
                 if (shouldExit && i + 1 < bars.Count)
                 {
                     // Sell at next bar's open
@@ -265,15 +273,14 @@ public class BacktestService : IBacktestService
         }
     }
 
-    private (bool triggered, string signal) EvaluateConditions(List<Condition> conditions, decimal rsiValue, OhlcvBar bar)
+    private (bool triggered, string signal) EvaluateConditions(List<Condition> conditions, Dictionary<string, decimal[]> indicators, int barIdx, OhlcvBar bar)
     {
         foreach (var cond in conditions)
         {
-            decimal indicatorValue = cond.Indicator.ToUpperInvariant() switch
-            {
-                "RSI" => rsiValue,
-                _ => 50m // unsupported indicator defaults to neutral
-            };
+            var key = cond.Indicator.ToUpperInvariant();
+            decimal indicatorValue = indicators.TryGetValue(key, out var arr) && barIdx < arr.Length
+                ? arr[barIdx]
+                : 50m; // unsupported indicator defaults to neutral
 
             bool met = cond.Operator switch
             {

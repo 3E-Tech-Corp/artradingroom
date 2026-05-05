@@ -42,6 +42,13 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// Auto-apply EF migrations on startup (runs as app pool identity which has DB access)
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<ArTradingDbContext>();
+    db.Database.Migrate();
+}
+
 // Configure pipeline
 if (app.Environment.IsDevelopment())
 {

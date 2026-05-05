@@ -16,6 +16,7 @@ public class ArTradingDbContext : DbContext
     public DbSet<RiskThreshold> RiskThresholds { get; set; }
     public DbSet<AgentTask> AgentTasks { get; set; }
     public DbSet<AuditLog> AuditLogs { get; set; }
+    public DbSet<MarketDataBar> MarketDataBars { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -48,5 +49,11 @@ public class ArTradingDbContext : DbContext
         modelBuilder.Entity<Trade>().HasIndex(t => t.ExecutedAt);
         modelBuilder.Entity<AuditLog>().HasIndex(a => a.Entity);
         modelBuilder.Entity<AuditLog>().HasIndex(a => a.Action);
+
+        // MarketDataBars: unique on (Ticker, Date) to support upserts
+        modelBuilder.Entity<MarketDataBar>()
+            .HasIndex(m => new { m.Ticker, m.Date })
+            .IsUnique();
+        modelBuilder.Entity<MarketDataBar>().HasIndex(m => m.Ticker);
     }
 }
