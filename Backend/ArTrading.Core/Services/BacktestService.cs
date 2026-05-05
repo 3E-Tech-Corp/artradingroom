@@ -19,6 +19,18 @@ public class BacktestResult
     public int TotalTrades { get; set; }
     public decimal WinRate { get; set; }
     public List<TradePoint> EquityCurve { get; set; } = new();
+    public List<SimulatedTrade> Trades { get; set; } = new();
+}
+
+public class SimulatedTrade
+{
+    public DateTime Date { get; set; }
+    public string Ticker { get; set; } = "";
+    public string Action { get; set; } = ""; // BUY or SELL
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+    public decimal PnL { get; set; }
+    public string Signal { get; set; } = ""; // e.g. "RSI < 30"
 }
 
 public class TradePoint
@@ -93,6 +105,7 @@ public class BacktestService : IBacktestService
         var daysInPeriod = (endDate - startDate).Days;
         var totalTrades = Math.Max(1, daysInPeriod / 7); // ~1 trade per week
         var winningTrades = (int)(totalTrades * 0.55m); // 55% win rate
+        var trades = GenerateMockTrades(startDate, endDate, totalTrades, winningTrades);
 
         return new BacktestResult
         {
@@ -102,8 +115,43 @@ public class BacktestService : IBacktestService
             WinningTrades = winningTrades,
             TotalTrades = totalTrades,
             WinRate = (decimal)winningTrades / totalTrades,
-            EquityCurve = GenerateMockEquityCurve(startDate, endDate, startingCapital)
+            EquityCurve = GenerateMockEquityCurve(startDate, endDate, startingCapital),
+            Trades = trades
         };
+    }
+
+    private List<SimulatedTrade> GenerateMockTrades(DateTime startDate, DateTime endDate, int totalTrades, int winningTrades)
+    {
+        var tickers = new[] { "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "META", "TSLA" };
+        var signals = new[] { "RSI < 30", "RSI > 70", "MACD crossover", "MA(20) cross MA(50)", "Volume spike" };
+        var rng = new Random(42); // deterministic seed for reproducibility
+        var trades = new List<SimulatedTrade>();
+        var daysInPeriod = (endDate - startDate).Days;
+
+        for (int i = 0; i < totalTrades; i++)
+        {
+            var isBuy = i % 2 == 0;
+            var isWin = i < winningTrades;
+            var dayOffset = (int)((double)i / totalTrades * daysInPeriod);
+            var date = startDate.AddDays(dayOffset);
+            var ticker = tickers[rng.Next(tickers.Length)];
+            var price = 100m + rng.Next(-20, 50) + rng.Next(0, 100) * 0.01m;
+            var qty = rng.Next(5, 50) * 10;
+            var pnl = isWin ? rng.Next(50, 800) : -rng.Next(30, 500);
+
+            trades.Add(new SimulatedTrade
+            {
+                Date = date,
+                Ticker = ticker,
+                Action = isBuy ? "BUY" : "SELL",
+                Quantity = qty,
+                Price = Math.Round(price, 2),
+                PnL = pnl,
+                Signal = signals[rng.Next(signals.Length)]
+            });
+        }
+
+        return trades.OrderBy(t => t.Date).ToList();
     }
 
     private List<TradePoint> GenerateMockEquityCurve(DateTime startDate, DateTime endDate, decimal startingCapital)

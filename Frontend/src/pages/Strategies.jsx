@@ -57,6 +57,10 @@ export default function Strategies() {
 
   if (selected) {
     const latest = backtests[0]
+    const latestResults = latest?.results ? (() => { try { return JSON.parse(latest.results) } catch { return null } })() : null
+    const equityCurveData = latestResults?.EquityCurve?.map(p => p.PortfolioValue) || (latest ? [latest.startingCapital, latest.startingCapital * 1.05, latest.startingCapital * 1.1, latest.startingCapital * 1.08, latest.finalValue] : [])
+    const trades = latestResults?.Trades || []
+
     return (
       <div>
         <button className="nav-btn" onClick={() => setSelected(null)}>&larr; Back</button>
@@ -82,17 +86,60 @@ export default function Strategies() {
         )}
 
         {latest && (
-          <div className="card">
-            <h3>Latest Backtest Results</h3>
-            <div className="stats-row">
-              <div className="stat"><label>Total Return</label><div className="value positive">{(latest.totalReturn * 100).toFixed(1)}%</div></div>
-              <div className="stat"><label>Sharpe Ratio</label><div className="value">{latest.sharpeRatio?.toFixed(2)}</div></div>
-              <div className="stat"><label>Max Drawdown</label><div className="value negative">{(latest.maxDrawdown * 100).toFixed(1)}%</div></div>
-              <div className="stat"><label>Win Rate</label><div className="value">{latest.totalTrades > 0 ? ((latest.winningTrades / latest.totalTrades) * 100).toFixed(0) : 0}%</div></div>
-              <div className="stat"><label>Total Trades</label><div className="value">{latest.totalTrades}</div></div>
+          <>
+            <div className="card">
+              <h3>Backtest Parameters</h3>
+              <div className="stats-row">
+                <div className="stat"><label>Date Range</label><div className="value" style={{ fontSize: '0.95rem' }}>{new Date(latest.startDate).toLocaleDateString()} — {new Date(latest.endDate).toLocaleDateString()}</div></div>
+                <div className="stat"><label>Starting Capital</label><div className="value">${Number(latest.startingCapital).toLocaleString()}</div></div>
+                <div className="stat"><label>Final Value</label><div className="value">${Number(latest.finalValue).toLocaleString()}</div></div>
+                <div className="stat"><label>Run Date</label><div className="value" style={{ fontSize: '0.85rem' }}>{new Date(latest.runAt).toLocaleString()}</div></div>
+              </div>
             </div>
-            <SvgChart data={[latest.startingCapital, latest.startingCapital * 1.05, latest.startingCapital * 1.1, latest.startingCapital * 1.08, latest.finalValue]} />
-          </div>
+
+            <div className="card">
+              <h3>Performance Summary</h3>
+              <div className="stats-row">
+                <div className="stat"><label>Total Return</label><div className="value positive">{(latest.totalReturn * 100).toFixed(1)}%</div></div>
+                <div className="stat"><label>Sharpe Ratio</label><div className="value">{latest.sharpeRatio?.toFixed(2)}</div></div>
+                <div className="stat"><label>Max Drawdown</label><div className="value negative">{(latest.maxDrawdown * 100).toFixed(1)}%</div></div>
+                <div className="stat"><label>Win Rate</label><div className="value">{latest.totalTrades > 0 ? ((latest.winningTrades / latest.totalTrades) * 100).toFixed(0) : 0}%</div></div>
+                <div className="stat"><label>Total Trades</label><div className="value">{latest.totalTrades}</div></div>
+              </div>
+              <SvgChart data={equityCurveData} width={600} height={160} label="equity" />
+            </div>
+
+            {trades.length > 0 && (
+              <div className="card">
+                <h3>Trade History ({trades.length} trades)</h3>
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  <table>
+                    <thead><tr><th>Date</th><th>Ticker</th><th>Action</th><th>Qty</th><th>Price</th><th>P&L</th><th>Signal</th></tr></thead>
+                    <tbody>
+                      {trades.map((t, i) => (
+                        <tr key={i}>
+                          <td>{new Date(t.Date).toLocaleDateString()}</td>
+                          <td><strong>{t.Ticker}</strong></td>
+                          <td style={{ color: t.Action === 'BUY' ? '#3fb950' : '#f85149' }}>{t.Action}</td>
+                          <td>{t.Quantity}</td>
+                          <td>${t.Price?.toFixed(2)}</td>
+                          <td className={t.PnL >= 0 ? 'positive' : 'negative'}>{t.PnL >= 0 ? '+' : ''}${t.PnL?.toFixed(2)}</td>
+                          <td style={{ color: '#8b949e', fontSize: '0.75rem' }}>{t.Signal}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {trades.length === 0 && (
+              <div className="card">
+                <h3>Trade History</h3>
+                <p className="empty">No trade log available for this backtest. Re-run the backtest to generate trade history.</p>
+              </div>
+            )}
+          </>
         )}
 
         {backtests.length === 0 && <p className="empty">No backtests run yet</p>}
